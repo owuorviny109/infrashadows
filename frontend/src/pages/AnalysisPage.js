@@ -155,6 +155,10 @@ function AnalysisPage() {
                               style={{ width: `${results.infrastructureImpact.water.score}%` }}
                             ></div>
                           </div>
+                          <div className="text-xs text-gray-500 mt-1 flex justify-between">
+                            <span>{results.infrastructureImpact.water.dailyDemandLiters?.toLocaleString() || '0'} L/day</span>
+                            <span>{results.infrastructureImpact.water.strainPercentage || '0'}% of capacity</span>
+                          </div>
                         </div>
                         <div>
                           <div className="flex justify-between text-sm">

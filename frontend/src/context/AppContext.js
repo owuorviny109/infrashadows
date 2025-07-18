@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useReducer } from 'react';
+import React, { createContext, useContext, useReducer } from 'react';
 import { extractData as extractDataService } from '../services/extractionService';
+import { calculateWaterDemand, calculateWaterDemandScore } from '../utils/waterDemandUtils';
 
 // Create context
 const AppContext = createContext();
@@ -158,14 +159,22 @@ export function AppProvider({ children }) {
       // For now, we'll simulate the analysis with a delay
       await new Promise(resolve => setTimeout(resolve, 1500));
       
+      // Calculate water demand metrics
+      const waterDemand = calculateWaterDemand(extractedData);
+      const waterScore = calculateWaterDemandScore(waterDemand.strainPercentage);
+      
       const development = {
         id: `dev-${Date.now()}`,
         extractedData: extractedData,
         legitimacyScore: Math.floor(Math.random() * 30) + 50, // Random score between 50-80
         infrastructureImpact: {
           water: { 
-            score: Math.floor(Math.random() * 40) + 40, 
-            risk: Math.random() > 0.5 ? 'Medium' : 'High'
+            score: waterScore,
+            risk: waterDemand.riskLevel,
+            dailyDemandLiters: waterDemand.dailyDemandLiters,
+            monthlyDemandCubicMeters: waterDemand.monthlyDemandCubicMeters,
+            strainPercentage: waterDemand.strainPercentage,
+            breakdown: waterDemand.breakdown
           },
           power: { 
             score: Math.floor(Math.random() * 40) + 40, 

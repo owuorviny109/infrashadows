@@ -104,7 +104,31 @@ function ReportPage() {
         </div>
         
         <div className="mb-6 border-t pt-4">
-          <h3 className="text-xl font-semibold mb-2">Infrastructure Impact</h3>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-xl font-semibold">Infrastructure Impact</h3>
+            <div className="flex flex-wrap gap-2">
+              <Link to={`/water-demand/${id}`}>
+                <Button variant="outline" size="sm">
+                  Water Analysis
+                </Button>
+              </Link>
+              <Link to={`/power-load/${id}`}>
+                <Button variant="outline" size="sm">
+                  Power Analysis
+                </Button>
+              </Link>
+              <Link to={`/drainage-impact/${id}`}>
+                <Button variant="outline" size="sm">
+                  Drainage Analysis
+                </Button>
+              </Link>
+              <Link to={`/green-cover/${id}`}>
+                <Button variant="outline" size="sm">
+                  Green Cover Analysis
+                </Button>
+              </Link>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Object.entries(report.infrastructureImpact).map(([key, value]) => (
               <ImpactMeter 
