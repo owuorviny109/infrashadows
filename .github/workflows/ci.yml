@@ -1,0 +1,74 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: Run frontend tests
+      run: |
+        cd frontend
+        npm test -- --watchAll=false
+    
+    - name: Install backend dependencies
+      run: |
+        cd backend
+        npm ci
+    
+    - name: Run backend tests
+      run: |
+        cd backend
+        npm test
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Build and deploy frontend
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+        aws s3 sync build/ s3://infrashadows-storage-dev --delete
+    
+    - name: Deploy backend
+      run: |
+        cd backend
+        npm ci
+        npx serverless deploy --stage dev

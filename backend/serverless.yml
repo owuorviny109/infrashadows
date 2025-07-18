@@ -1,0 +1,164 @@
+service: infrashadows-backend
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  memorySize: 256
+  timeout: 10
+  
+  # Environment variables for Lambda functions
+  environment:
+    DEVELOPMENTS_TABLE: infrashadows-developments-${self:provider.stage}
+    ANALYSIS_RESULTS_TABLE: infrashadows-results-${self:provider.stage}
+    REPORTS_TABLE: infrashadows-reports-${self:provider.stage}
+    STORAGE_BUCKET: ${self:custom.bucketName}
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+  
+  # IAM role statements for Lambda functions
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource: "arn:aws:s3:::${self:custom.bucketName}/*"
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchGetItem
+          Resource: 
+            - !GetAtt DevelopmentsTable.Arn
+            - !GetAtt AnalysisResultsTable.Arn
+            - !GetAtt ReportsTable.Arn
+        - Effect: Allow
+          Action:
+            - bedrock:InvokeModel
+          Resource: "*"
+
+custom:
+  bucketName: infrashadows-storage-${self:provider.stage}
+  tableName: infrashadows-table-${self:provider.stage}
+  # Free tier optimization settings
+  prune:
+    automatic: true
+    number: 3
+
+functions:
+  analyzeListingFunction:
+    handler: src/functions/analyzeListing.handler
+    events:
+      - http:
+          path: /analyze
+          method: post
+          cors: true
+  
+  getAnalysisFunction:
+    handler: src/functions/getAnalysis.handler
+    events:
+      - http:
+          path: /analysis/{id}
+          method: get
+          cors: true
+  
+  generateReportFunction:
+    handler: src/functions/generateReport.handler
+    events:
+      - http:
+          path: /report
+          method: post
+          cors: true
+
+resources:
+  Resources:
+    # S3 bucket for storing reports and static assets
+    StorageBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketName}
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+                - HEAD
+              AllowedOrigins:
+                - '*'
+    
+    # DynamoDB table for developments
+    DevelopmentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: infrashadows-developments-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+    
+    # DynamoDB table for analysis results
+    AnalysisResultsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: infrashadows-results-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: developmentId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: DevelopmentIndex
+            KeySchema:
+              - AttributeName: developmentId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+    
+    # DynamoDB table for reports
+    ReportsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: infrashadows-reports-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: analysisId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: AnalysisIndex
+            KeySchema:
+              - AttributeName: analysisId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        TimeToLiveSpecification:
+          AttributeName: expiresAt
+          Enabled: true
+
+plugins:
+  - serverless-offline
+  - serverless-prune-plugin
