@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useReducer } from 'react';
+import { extractData as extractDataService } from '../services/extractionService';
 
 // Create context
 const AppContext = createContext();
@@ -14,7 +15,9 @@ const initialState = {
     zoning: true
   },
   loading: false,
-  error: null
+  error: null,
+  extractionMode: 'demo', // 'demo', 'regex', or 'bedrock'
+  extractedData: null
 };
 
 // Action types
@@ -24,7 +27,10 @@ const ActionTypes = {
   ADD_DEVELOPMENT: 'ADD_DEVELOPMENT',
   SELECT_DEVELOPMENT: 'SELECT_DEVELOPMENT',
   TOGGLE_MAP_LAYER: 'TOGGLE_MAP_LAYER',
-  RESET_ERROR: 'RESET_ERROR'
+  RESET_ERROR: 'RESET_ERROR',
+  SET_EXTRACTION_MODE: 'SET_EXTRACTION_MODE',
+  SET_EXTRACTED_DATA: 'SET_EXTRACTED_DATA',
+  UPDATE_EXTRACTED_DATA: 'UPDATE_EXTRACTED_DATA'
 };
 
 // Reducer function
@@ -50,6 +56,24 @@ function appReducer(state, action) {
         mapLayers: { 
           ...state.mapLayers, 
           [action.payload]: !state.mapLayers[action.payload] 
+        } 
+      };
+    case ActionTypes.SET_EXTRACTION_MODE:
+      return { ...state, extractionMode: action.payload };
+    case ActionTypes.SET_EXTRACTED_DATA:
+      return { ...state, extractedData: action.payload };
+    case ActionTypes.UPDATE_EXTRACTED_DATA:
+      return { 
+        ...state, 
+        extractedData: { 
+          ...state.extractedData, 
+          ...action.payload,
+          // Update validation status if data was manually edited
+          validation: {
+            ...state.extractedData.validation,
+            isValid: true,
+            manuallyVerified: true
+          }
         } 
       };
     default:
@@ -85,31 +109,76 @@ export function AppProvider({ children }) {
   const toggleMapLayer = (layer) => {
     dispatch({ type: ActionTypes.TOGGLE_MAP_LAYER, payload: layer });
   };
+  
+  const setExtractionMode = (mode) => {
+    dispatch({ type: ActionTypes.SET_EXTRACTION_MODE, payload: mode });
+  };
+  
+  const setExtractedData = (data) => {
+    dispatch({ type: ActionTypes.SET_EXTRACTED_DATA, payload: data });
+  };
+  
+  const updateExtractedData = (data) => {
+    dispatch({ type: ActionTypes.UPDATE_EXTRACTED_DATA, payload: data });
+  };
 
-  // API mock functions
+  // Extract data from listing text
+  const extractData = async (listingText) => {
+    setLoading(true);
+    resetError();
+    
+    try {
+      // Use the extraction service
+      const extractedData = await extractDataService(listingText);
+      setExtractedData(extractedData);
+      setLoading(false);
+      return extractedData;
+    } catch (error) {
+      console.error('Error extracting data:', error);
+      setError('Failed to extract data from listing. Please try again or enter details manually.');
+      setLoading(false);
+      return null;
+    }
+  };
+
+  // Analyze development based on extracted data
   const analyzeDevelopment = async (listingText) => {
     setLoading(true);
     resetError();
     
     try {
-      // This would be replaced with actual API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // First extract data from the listing
+      const extractedData = await extractData(listingText);
+      
+      if (!extractedData) {
+        throw new Error('Failed to extract data from listing');
+      }
+      
+      // This would be replaced with actual API call in a real implementation
+      // For now, we'll simulate the analysis with a delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
       const development = {
         id: `dev-${Date.now()}`,
-        extractedData: {
-          floors: 12,
-          units: 48,
-          location: 'Kilimani, Nairobi',
-          amenities: ['Swimming Pool', 'Gym', 'Security'],
-          parkingSpaces: 60
-        },
-        legitimacyScore: 78,
+        extractedData: extractedData,
+        legitimacyScore: Math.floor(Math.random() * 30) + 50, // Random score between 50-80
         infrastructureImpact: {
-          water: { score: 65, risk: 'Medium' },
-          power: { score: 72, risk: 'Low' },
-          drainage: { score: 45, risk: 'High' },
-          greenCover: { score: 60, risk: 'Medium' }
+          water: { 
+            score: Math.floor(Math.random() * 40) + 40, 
+            risk: Math.random() > 0.5 ? 'Medium' : 'High'
+          },
+          power: { 
+            score: Math.floor(Math.random() * 40) + 40, 
+            risk: Math.random() > 0.7 ? 'Low' : 'Medium'
+          },
+          drainage: { 
+            score: Math.floor(Math.random() * 40) + 40, 
+            risk: Math.random() > 0.3 ? 'Medium' : 'High'
+          },
+          greenCover: { 
+            score: Math.floor(Math.random() * 40) + 40, 
+            risk: Math.random() > 0.5 ? 'Medium' : 'High'
+          }
         },
         originalListing: listingText
       };
@@ -118,7 +187,9 @@ export function AppProvider({ children }) {
       setLoading(false);
       return development;
     } catch (error) {
+      console.error('Error analyzing development:', error);
       setError('Failed to analyze development. Please try again.');
+      setLoading(false);
       return null;
     }
   };
@@ -131,6 +202,9 @@ export function AppProvider({ children }) {
     addDevelopment,
     selectDevelopment,
     toggleMapLayer,
+    setExtractionMode,
+    extractData,
+    updateExtractedData,
     analyzeDevelopment
   };
 

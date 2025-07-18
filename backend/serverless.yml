@@ -55,6 +55,19 @@ custom:
     number: 3
 
 functions:
+  extractDataFunction:
+    handler: src/functions/extractData.handler
+    events:
+      - http:
+          path: /extract
+          method: post
+          cors: true
+    environment:
+      DEMO_MODE: true  # Set to true to stay within free tier limits
+      CACHE_TABLE: infrashadows-extraction-cache-${self:provider.stage}
+      USAGE_TABLE: infrashadows-api-usage-${self:provider.stage}
+      MONTHLY_LIMIT: 10  # Extremely conservative limit for Bedrock API calls
+  
   analyzeListingFunction:
     handler: src/functions/analyzeListing.handler
     events:
@@ -158,6 +171,35 @@ resources:
         TimeToLiveSpecification:
           AttributeName: expiresAt
           Enabled: true
+          
+    # DynamoDB table for extraction cache (to reduce API calls)
+    ExtractionCacheTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: infrashadows-extraction-cache-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+    
+    # DynamoDB table for API usage tracking (to stay within free tier)
+    ApiUsageTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: infrashadows-api-usage-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
 
 plugins:
   - serverless-offline
